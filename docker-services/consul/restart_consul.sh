@@ -35,7 +35,15 @@ chmod 666 $consullogfile
 echo "" >> $log
 echo "Running as Bootstrap Server Node" >> $log
 echo "" >> $log
-consul agent -server -data-dir="/tmp/consul" -bind=0.0.0.0 -bootstrap-expect 1 &> $consullogfile &
+consul agent -server -data-dir="/tmp/consul" -bind=0.0.0.0 -bootstrap-expect 1 &>> $consullogfile &
 
+# Lets not jump the gun
+until tail -n3 $consullogfile | grep -q 'New leader elected'; do
+    echo -n '.';
+    sleep 0.1
+done
+echo
+
+echo "Consul agent started" >> $log
 exit 0
 

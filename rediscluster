@@ -1,0 +1,92 @@
+#!/bin/bash
+#
+# rc file for Redis Cluster
+#
+# chkconfig: 345 96 10
+# description: Redis
+#
+### BEGIN INIT INFO
+# Provides: redis
+# Required-Start: $network
+# Required-Stop: $network
+# Default-Start: 2 3 4 5
+# Default-Stop: 0 1 6
+# Short-Description: Redis cluster
+# Description: Docker Redis cluster with sentinal and replication using swarm and consul
+### END INIT INFO
+
+export no_proxy=$(head -1 /etc/hosts | awk '{$1=""; print}' | sed 's/^ //; s/ /, /g')
+export DOCKER_HOST=localhost:4000
+
+# if the network file exists, this often causes problms if the
+# machine has shutdown uncleanly.
+# In this instance we need to delete the file and replace it
+# during docker-boot
+[ -f /var/lib/docker/network/files/local-kv.db ] && rm -f /var/lib/docker/network/files/local-kv.db
+
+REDISNODES=(
+    localhost.localdomain/redisnode2
+    localhost.localdomain/redisnode3
+    localhost.localdomain/redisnode1
+)
+
+IP='0.0.0.0'
+if ifconfig | grep -q 'docker_gwbridge'; then
+    IP=$(ifconfig | grep -A1 'docker_gwbridge' | grep inet | awk '{print $2}');
+fi
+
+cd /opt/docker-redis-sentinel-replication-cluster/
+
+export PATH=$PATH:/usr/local/bin
+
+function startcmd()
+{
+    ./manage_docker.sh start
+    sleep 10
+    ./start_cluster.sh
+
+    IP=$(ifconfig | grep -A1 'docker_gwbridge' | grep inet | awk '{print $2}')
+    ip route add 10.0.0.0/24 via $IP dev docker_gwbridge
+}
+
+function stopcmd()
+{
+    ./stop_cluster.sh
+    if [ "$IP" != '0.0.0.0' ]; then
+        ip route del 10.0.0.0/24 via $IP dev docker_gwbridge
+    fi
+    sleep 10
+    ./manage_docker.sh stop
+}
+
+function statuscmd()
+{
+    ./manage_docker.sh status
+    for node in ${REDISNODES[@]}; do
+        if docker ps | grep -q $node; then
+            echo "$node running";
+        else
+            echo "$node is not running"
+        fi
+    done
+}
+
+case "$1" in
+    "start")
+        startcmd
+    ;;
+    "stop")
+        stopcmd
+    ;;
+    "restart")
+        stopcmd
+        sleep 5
+        startcmd
+    ;;
+    "status")
+        statuscmd
+    ;;
+    *)
+        echo "Usage: $0 <start|stop|restart|status>"
+    ;;
+esac

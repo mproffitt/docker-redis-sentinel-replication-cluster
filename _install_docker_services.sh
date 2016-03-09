@@ -104,9 +104,10 @@ if [ $updatedockerswarm -eq 1 ]; then
       chmod 777 $goworkspacepath/bin >> /dev/null
   fi
 
-  sudo yum install -y go
+  sudo dnf install -y go
   echo " - Using GOPATH($GOPATH) set this in ./common.sh if you want to override"
   export GOPATH=$goworkspacepath
+  go get github.com/tools/godep
   mkdir -p $GOPATH/src/github.com/docker/
   cd $GOPATH/src/github.com/docker/
   git clone https://github.com/docker/swarm
